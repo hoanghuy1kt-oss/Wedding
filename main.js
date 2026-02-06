@@ -71,6 +71,24 @@ function setDownloadButtonsEnabled(enabled) {
   });
 }
 
+function showLoadingOverlay() {
+  const el = document.getElementById('loadingOverlay');
+  if (el) {
+    el.classList.remove('opacity-0', 'pointer-events-none');
+    el.classList.add('opacity-100', 'pointer-events-auto');
+    el.setAttribute('aria-hidden', 'false');
+  }
+}
+
+function hideLoadingOverlay() {
+  const el = document.getElementById('loadingOverlay');
+  if (el) {
+    el.classList.add('opacity-0', 'pointer-events-none');
+    el.classList.remove('opacity-100', 'pointer-events-auto');
+    el.setAttribute('aria-hidden', 'true');
+  }
+}
+
 const handleDownload = () => {
   if (!currentImage) { showToast("Đang tải ảnh mẫu, vui lòng đợi..."); return; }
   const guestName = guestNameInput.value.trim();
@@ -78,7 +96,7 @@ const handleDownload = () => {
   if (isDownloading) return;
   isDownloading = true;
   setDownloadButtonsEnabled(false);
-  showToast("Đang tải thiệp...");
+  showLoadingOverlay();
   // Vẽ lại canvas chính để đảm bảo có nội dung mới nhất
   draw();
   const scale = 2;
@@ -97,6 +115,7 @@ const handleDownload = () => {
   function onDownloadComplete() {
     isDownloading = false;
     setDownloadButtonsEnabled(true);
+    hideLoadingOverlay();
     showToast("Tải thành công!");
   }
 

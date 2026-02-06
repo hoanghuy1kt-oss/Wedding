@@ -98,10 +98,13 @@ function showToast(msg) {
   setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
 }
 
+/** Giới hạn kích thước canvas cho Safari iOS (4096px) */
+const MAX_EXPORT_DIM = 4096;
+
 /** Tạo canvas export – dùng createImageBitmap (fallback: currentImage) để tránh canvas tainted */
 async function createExportImage() {
   const guestName = guestNameInput.value.trim();
-  const scale = 2;
+  let scale = 2;
   let srcW, srcH;
   let bitmap = null;
 
@@ -121,8 +124,11 @@ async function createExportImage() {
     srcH = currentImage.height;
   }
 
-  const w = srcW * scale;
-  const h = srcH * scale;
+  const maxDim = Math.max(srcW, srcH) * scale;
+  if (maxDim > MAX_EXPORT_DIM) scale = MAX_EXPORT_DIM / Math.max(srcW, srcH);
+
+  const w = Math.round(srcW * scale);
+  const h = Math.round(srcH * scale);
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
@@ -192,26 +198,12 @@ async function handleDownload() {
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  exportCanvas.toBlob(
-    (blob) => {
-      if (!blob) {
-        const dataUrl = exportCanvas.toDataURL('image/png');
-        if (dataUrl && dataUrl.length > 100) {
-          triggerDownload(dataUrl, fileName);
-          done(true, "Tải thành công!");
-        } else {
-          done(false);
-          showToast("Không thể tạo ảnh. Vui lòng thử lại.");
-        }
-        return;
-      }
+  function proceedWithBlob(blob) {
+    const file = new File([blob], fileName, { type: 'image/png' });
+    const isAndroid = /Android/i.test(navigator.userAgent);
 
-      const file = new File([blob], fileName, { type: 'image/png' });
-      const isAndroid = /Android/i.test(navigator.userAgent);
-
-      // Android & iOS: Web Share – có ảnh thật. Chọn "Lưu ảnh" / "Add to Photos" để lưu vào Thư viện Ảnh
-      // iOS: luôn thử share (canShare có thể trả false sai trên một số phiên bản)
-      if ((isIOS || isAndroid) && navigator.share) {
+    // Android & iOS: Web Share – có ảnh thật. Chọn "Lưu ảnh" / "Add to Photos" để lưu vào Thư viện Ảnh
+    if ((isIOS || isAndroid) && navigator.share) {
         navigator
           .share({ files: [file], title: 'Thiệp cưới ' + guestName })
           .then(() => {
@@ -259,6 +251,29 @@ async function handleDownload() {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  exportCanvas.toBlob(
+    (blob) => {
+      if (blob) {
+        proceedWithBlob(blob);
+        return;
+      }
+      const dataUrl = exportCanvas.toDataURL('image/png');
+      if (!dataUrl || dataUrl.length <= 100) {
+        done(false);
+        showToast("Không thể tạo ảnh. Vui lòng thử lại.");
+        return;
+      }
+      fetch(dataUrl)
+        .then((r) => r.blob())
+        .then((b) => {
+          proceedWithBlob(b);
+        })
+        .catch(() => {
+          triggerDownload(dataUrl, fileName);
+          done(true, "Tải thành công!");
+        });
     },
     'image/png',
     1

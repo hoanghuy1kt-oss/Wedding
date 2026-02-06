@@ -187,11 +187,15 @@ async function handleDownload() {
       const file = new File([blob], fileName, { type: 'image/png' });
       const isAndroid = /Android/i.test(navigator.userAgent);
 
-      // iOS: Web Share
-      if (isIOS && navigator.share && navigator.canShare?.({ files: [file] })) {
+      // Android & iOS: Web Share – trên Android tải về thường không lưu, Share mới có ảnh thật
+      if ((isIOS || isAndroid) && navigator.share && navigator.canShare?.({ files: [file] })) {
         navigator
           .share({ files: [file], title: 'Thiệp cưới ' + guestName })
-          .then(() => done(true, "Tải thành công!"))
+          .then(() => {
+            done(true, isAndroid
+              ? "Đã chia sẻ thành công! Ảnh đã lưu/gửi qua app bạn chọn."
+              : "Tải thành công!");
+          })
           .catch((err) => {
             if (err.name === 'AbortError') done(false);
             else {
@@ -211,7 +215,7 @@ async function handleDownload() {
         return;
       }
 
-      // Android & Desktop: tải về → lưu vào Ảnh/Tải xuống
+      // Desktop: tải về
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -221,8 +225,7 @@ async function handleDownload() {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 10000);
-      const msg = isAndroid ? "Đã lưu thiệp! Xem trong Ảnh hoặc thư mục Tải xuống." : "Tải thành công!";
-      done(true, msg);
+      done(true, "Tải thành công!");
     },
     'image/png',
     1

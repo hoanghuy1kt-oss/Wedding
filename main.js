@@ -185,11 +185,13 @@ async function handleDownload() {
       }
 
       const file = new File([blob], fileName, { type: 'image/png' });
+      const isAndroid = /Android/i.test(navigator.userAgent);
 
-      if (isIOS && navigator.share && navigator.canShare?.({ files: [file] })) {
+      // Android & iOS: dùng Web Share để chia sẻ trực tiếp (WhatsApp, Zalo, Gmail...) – hình có trong ảnh để gửi khách
+      if ((isIOS || isAndroid) && navigator.share && navigator.canShare?.({ files: [file] })) {
         navigator
           .share({ files: [file], title: 'Thiệp cưới ' + guestName })
-          .then(() => done(true, "Tải thành công!"))
+          .then(() => done(true, isAndroid ? "Đã chia sẻ! Gửi thiệp cho khách qua app bạn chọn." : "Tải thành công!"))
           .catch((err) => {
             if (err.name === 'AbortError') {
               done(false);
@@ -210,6 +212,7 @@ async function handleDownload() {
         return;
       }
 
+      // Desktop: tải về
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -219,8 +222,7 @@ async function handleDownload() {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 10000);
-      const msg = /Android/i.test(navigator.userAgent) ? "Tải thành công! Xem trong thư mục Tải xuống." : "Tải thành công!";
-      done(true, msg);
+      done(true, "Tải thành công!");
     },
     'image/png',
     1

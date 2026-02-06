@@ -12,7 +12,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@400;600&display=swap&subset=vietnamese" rel="stylesheet">
     <style>
-        body { font-family: 'Montserrat', sans-serif; background-color: #fdfbf7; }
+        body { font-family: 'Montserrat', sans-serif; background-color: #fdfbf7; -webkit-overflow-scrolling: touch; }
+        html { scroll-behavior: smooth; }
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #d4af37; border-radius: 4px; }
@@ -38,7 +39,9 @@
             cursor: pointer; border: 3px solid white;
             box-shadow: 0 2px 6px rgba(0,0,0,0.2);
         }
-        @media (max-width: 640px) { .canvas-container { max-width: 100%; } #canvas { max-width: 100%; height: auto; } }
+        @media (max-width: 640px) { .canvas-container { max-width: 100%; contain: paint; } #canvas { max-width: 100%; height: auto; } }
+        .slider-area { touch-action: pan-y; }
+        header { backface-visibility: hidden; transform: translateZ(0); }
         input#guestName { font-family: 'Montserrat', sans-serif; }
     </style>
 </head>
@@ -49,14 +52,10 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 sm:h-8 sm:w-8 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                 Đám cưới Huy & Hoa
             </h1>
-            <div class="absolute right-0 flex items-center gap-2">
-                <button id="downloadBtnHeader" class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-400 active:scale-95 text-blue-900 font-bold py-2 px-4 rounded-full text-sm transition shadow-lg touch-manipulation" title="Tải thiệp về máy">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    <span class="hidden sm:inline">Tải thiệp</span>
-                </button>
-                <button id="installBtn" class="hidden flex items-center gap-2 bg-white/20 hover:bg-white/30 font-bold py-2 px-4 rounded-full text-sm transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    <span class="hidden sm:inline">Tải app</span>
+            <div id="installBtnWrap" class="absolute right-0 hidden">
+                <button id="installBtn" class="flex items-center gap-2 bg-white/20 hover:bg-white/30 font-bold py-2 px-3 rounded-full text-xs transition" title="Cài app vào màn hình">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    <span>App</span>
                 </button>
             </div>
         </div>
@@ -79,18 +78,14 @@
                             <option value="'Montserrat', sans-serif">Hiện đại (Sans)</option>
                         </select>
                     </div>
-                    <div class="col-span-2">
-                        <label class="text-xs text-gray-500 font-bold mb-1 block">Màu chữ:</label>
-                        <div class="flex items-center gap-2 border p-1 rounded-lg">
-                            <input type="color" id="textColor" value="#2d3748" class="h-8 w-8 p-0 border-0 rounded cursor-pointer">
-                            <span class="text-xs font-mono text-gray-600" id="colorHex">#2D3748</span>
-                        </div>
-                    </div>
                 </div>
             </div>
-            <div class="space-y-4 pt-4 border-t border-gray-100">
-                <label class="block text-sm font-semibold text-gray-600 uppercase tracking-wider">2. Căn chỉnh vị trí</label>
-                <div class="space-y-3 bg-gray-50 p-3 rounded-lg">
+            <div class="pt-4 border-t border-gray-100">
+                <button type="button" id="togglePositionBtn" class="w-full flex items-center justify-between text-left text-sm font-semibold text-gray-600 uppercase tracking-wider py-2 px-3 rounded-lg hover:bg-gray-50 transition touch-manipulation">
+                    <span>2. Căn chỉnh vị trí</span>
+                    <svg id="togglePositionIcon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div id="positionSection" class="hidden space-y-3 bg-gray-50 p-3 rounded-lg slider-area mt-2">
                     <div>
                         <div class="flex justify-between mb-1"><label class="text-xs text-gray-500">Cỡ chữ (To/Nhỏ)</label><span id="sizeVal" class="text-xs font-bold text-blue-600">--</span></div>
                         <input type="range" id="fontSize" min="20" max="300" value="50" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer hover:bg-gray-300">
@@ -105,11 +100,11 @@
                     </div>
                 </div>
             </div>
+            <p class="text-xs text-gray-400 italic">Chạm hoặc click lên ảnh để đặt vị trí chữ.</p>
             <button id="downloadBtn" class="w-full bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white font-bold py-4 px-4 min-h-[52px] rounded-xl shadow-xl hover:shadow-2xl transition transform active:scale-[0.98] flex items-center justify-center gap-2 group touch-manipulation" title="Tải thiệp về máy">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 group-hover:animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 <span class="text-lg">Tải Thiệp Về Ngay</span>
             </button>
-            <p class="text-xs text-gray-400 text-center italic">Chạm hoặc click lên ảnh để đặt vị trí chữ.</p>
         </div>
         <div class="w-full lg:w-2/3 flex flex-col items-center">
             <div class="canvas-container bg-white rounded-lg overflow-hidden w-full relative shadow-2xl">

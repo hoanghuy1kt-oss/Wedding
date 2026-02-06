@@ -187,18 +187,19 @@ async function handleDownload() {
       const file = new File([blob], fileName, { type: 'image/png' });
       const isAndroid = /Android/i.test(navigator.userAgent);
 
-      // Android & iOS: Web Share – trên Android tải về thường không lưu, Share mới có ảnh thật
+      // Android & iOS: Web Share – có ảnh thật, lưu/gửi qua bảng chia sẻ
       if ((isIOS || isAndroid) && navigator.share && navigator.canShare?.({ files: [file] })) {
         navigator
           .share({ files: [file], title: 'Thiệp cưới ' + guestName })
           .then(() => {
             done(true, isAndroid
               ? "Đã chia sẻ thành công! Ảnh đã lưu/gửi qua app bạn chọn."
-              : "Tải thành công!");
+              : "Đã xong! Nếu chọn 'Lưu ảnh', thiệp đã nằm trong Thư viện Ảnh.");
           })
           .catch((err) => {
             if (err.name === 'AbortError') done(false);
             else {
+              // iOS/Android fallback: mở ảnh trong tab mới → chạm giữ để lưu
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
@@ -209,7 +210,9 @@ async function handleDownload() {
               a.click();
               document.body.removeChild(a);
               setTimeout(() => URL.revokeObjectURL(url), 10000);
-              done(true, "Mở ảnh trong tab mới. Chạm giữ ảnh → Lưu ảnh.");
+              done(true, isIOS
+                ? "Ảnh đã mở. Chạm giữ ảnh → chọn 'Lưu ảnh' để lưu vào Thư viện Ảnh."
+                : "Mở ảnh trong tab mới. Chạm giữ ảnh → Lưu ảnh.");
             }
           });
         return;

@@ -63,7 +63,7 @@ fontSelect.addEventListener('input', scheduleDraw);
 
 let isDownloading = false;
 function setDownloadButtonsEnabled(enabled) {
-  const btns = [downloadBtn, downloadBtnMobile?.querySelector('button')].filter(Boolean);
+  const btns = [downloadBtn, document.getElementById('downloadBtnMobileBtn')].filter(Boolean);
   btns.forEach(btn => {
     btn.disabled = !enabled;
     btn.classList.toggle('opacity-60', !enabled);
@@ -165,23 +165,32 @@ function fallbackDownload(blobOrCanvas, fileName, onComplete, isMobile = false) 
   const link = document.createElement("a");
   link.download = fileName;
   link.href = url;
-  link.rel = "noopener";
-  if (isMobile) {
-    link.target = "_blank";
-    link.style.display = "none";
-  }
+  link.rel = "noopener noreferrer";
+  link.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;z-index:9999;";
+  if (isMobile) link.target = "_blank";
   document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      link.click();
+      setTimeout(() => {
+        if (link.parentNode) document.body.removeChild(link);
+        try { URL.revokeObjectURL(url); } catch (_) {}
+      }, 15000);
+    });
+  });
   if (isMobile) {
     showToast("Mở ảnh trong tab mới. Chạm giữ ảnh để lưu.");
   }
   onComplete();
 }
-if (downloadBtn) downloadBtn.addEventListener('click', handleDownload);
-const mobileDownloadBtn = downloadBtnMobile?.querySelector('button');
-if (mobileDownloadBtn) mobileDownloadBtn.addEventListener('click', handleDownload);
+
+document.addEventListener("click", (e) => {
+  const target = e.target.closest("#downloadBtn, #downloadBtnMobileBtn");
+  if (target && !target.disabled) {
+    e.preventDefault();
+    handleDownload();
+  }
+});
 
 function showToast(msg) {
   const toast = document.getElementById('toast');

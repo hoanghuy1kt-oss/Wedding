@@ -74,9 +74,9 @@
             </div>
         </div>
     </main>
-    <!-- Nút tải thiệp cố định trên mobile (Android/iOS) -->
-    <div id="downloadBtnMobile" class="lg:hidden fixed bottom-0 left-0 right-0 z-40 p-4 bg-white/95 backdrop-blur-sm border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] safe-area-pb">
-        <button type="button" class="w-full bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white font-bold py-4 px-4 min-h-[52px] rounded-xl shadow-xl flex items-center justify-center gap-2 touch-manipulation">
+    <!-- Nút tải thiệp cố định trên mobile (Android/iOS) - z-50 để luôn nằm trên -->
+    <div id="downloadBtnMobile" class="lg:hidden fixed bottom-0 left-0 right-0 z-50 p-4 bg-white/95 backdrop-blur-sm border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] safe-area-pb" style="-webkit-tap-highlight-color: rgba(0,0,0,0.1);">
+        <button type="button" id="downloadBtnMobileBtn" class="w-full bg-blue-900 hover:bg-blue-800 active:bg-blue-950 text-white font-bold py-4 px-4 min-h-[52px] rounded-xl shadow-xl flex items-center justify-center gap-2 touch-manipulation cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             <span>Tải Thiệp Về Ngay</span>
         </button>
@@ -89,7 +89,7 @@
             <span class="text-gray-700 font-semibold">Đang tải...</span>
         </div>
     </div>
-    <div id="toast" class="fixed bottom-24 lg:bottom-5 right-5 left-5 sm:left-auto sm:right-5 bg-green-600 text-white px-6 py-3 rounded-lg shadow-xl transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center gap-3 max-w-[calc(100vw-2rem)]">
+    <div id="toast" class="fixed bottom-28 lg:bottom-5 right-5 left-5 sm:left-auto sm:right-5 bg-green-600 text-white px-6 py-3 rounded-lg shadow-xl transform translate-y-20 opacity-0 transition-all duration-300 z-[55] flex items-center gap-3 max-w-[calc(100vw-2rem)] pointer-events-none">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
         <span id="toastMsg">Thành công!</span>
     </div>

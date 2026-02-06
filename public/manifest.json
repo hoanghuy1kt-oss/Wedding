@@ -1,0 +1,14 @@
+{
+  "name": "Đám cưới Huy & Hoa",
+  "short_name": "Thiệp Huy Hoa",
+  "description": "Công cụ tạo thiệp cưới cá nhân hóa",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fdfbf7",
+  "theme_color": "#1e3a8a",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

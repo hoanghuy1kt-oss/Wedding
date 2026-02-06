@@ -3,49 +3,58 @@ const ctx = canvas.getContext('2d');
 const guestNameInput = document.getElementById('guestName');
 const fontSelect = document.getElementById('fontFamily');
 const TEXT_COLOR = "#2d3748";
-const downloadBtn = document.getElementById('downloadBtn');
-const downloadBtnMobile = document.getElementById('downloadBtnMobile');
-const placeholder = document.getElementById('placeholder');
+const POS_X = 84, POS_Y = 65;
 
 let currentImage = null;
+let imageBlob = null; // Lưu blob gốc để export không bị tainted
 let fontSize = 50;
 const DEFAULT_IMAGE_PATH = "/thiep cuoi.jpg";
-const POS_X = 84, POS_Y = 65; // Vị trí mặc định: Ngang 84%, Dọc 65%
 
 canvas.width = 800;
 canvas.height = 600;
 
 function loadDefaultImage() {
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.onload = () => {
-    canvas.width = img.width;
-    canvas.height = img.height;
-    currentImage = img;
-    fontSize = Math.floor(img.width / 25);
-    placeholder.style.display = 'none';
-    draw();
-    showToast("Đã tải ảnh mẫu! Hãy nhập tên khách.");
-  };
-  img.onerror = () => showToast("Không thể tải ảnh mẫu.");
-  img.src = DEFAULT_IMAGE_PATH;
+  fetch(DEFAULT_IMAGE_PATH)
+    .then((res) => {
+      if (!res.ok) throw new Error("Network error");
+      return res.blob();
+    })
+    .then((blob) => {
+      imageBlob = blob;
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        canvas.width = img.width;
+        canvas.height = img.height;
+        currentImage = img;
+        fontSize = Math.floor(img.width / 25);
+        document.getElementById("placeholder").style.display = "none";
+        draw();
+        showToast("Đã tải ảnh mẫu! Hãy nhập tên khách.");
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        imageBlob = null;
+        showToast("Không thể tải ảnh mẫu.");
+      };
+      img.src = url;
+    })
+    .catch(() => showToast("Không thể tải ảnh mẫu."));
 }
 loadDefaultImage();
 
-function draw(isExporting = false) {
-  if (!currentImage) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+function draw() {
+  if (!currentImage) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(currentImage, 0, 0);
-  const text = guestNameInput.value;
+  const text = guestNameInput.value.trim();
   if (!text) return;
-  const fontFamily = fontSelect.value;
-  const x = (POS_X / 100) * canvas.width;
-  const y = (POS_Y / 100) * canvas.height;
-  ctx.font = `${fontSize}px ${fontFamily}`;
+  ctx.font = `${fontSize}px ${fontSelect.value}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = TEXT_COLOR;
-  ctx.fillText(text, x, y);
+  ctx.fillText(text, (POS_X / 100) * canvas.width, (POS_Y / 100) * canvas.height);
 }
 
 function debounce(fn, ms) {
@@ -55,162 +64,177 @@ function debounce(fn, ms) {
 let rafId = null;
 function scheduleDraw() {
   if (rafId) return;
-  rafId = requestAnimationFrame(() => { draw(false); rafId = null; });
+  rafId = requestAnimationFrame(() => { draw(); rafId = null; });
 }
-const debouncedDraw = debounce(scheduleDraw, 80);
 
-guestNameInput.addEventListener('input', debouncedDraw);
+guestNameInput.addEventListener('input', debounce(scheduleDraw, 80));
 fontSelect.addEventListener('input', scheduleDraw);
 
 let isDownloading = false;
-function setDownloadButtonsEnabled(enabled) {
-  const btns = [downloadBtn, document.getElementById('downloadBtnMobileBtn')].filter(Boolean);
-  btns.forEach(btn => {
-    btn.disabled = !enabled;
-    btn.classList.toggle('opacity-60', !enabled);
-    btn.classList.toggle('pointer-events-none', !enabled);
+
+function setButtonsState(enabled) {
+  const btns = [document.getElementById('downloadBtn'), document.getElementById('downloadBtnMobileBtn')].filter(Boolean);
+  btns.forEach(b => {
+    b.disabled = !enabled;
+    b.style.opacity = enabled ? '1' : '0.6';
+    b.style.pointerEvents = enabled ? 'auto' : 'none';
   });
 }
 
-function showLoadingOverlay() {
+function showLoading(show) {
   const el = document.getElementById('loadingOverlay');
-  if (el) {
-    el.classList.remove('opacity-0', 'pointer-events-none');
-    el.classList.add('opacity-100', 'pointer-events-auto');
-    el.setAttribute('aria-hidden', 'false');
-  }
+  if (!el) return;
+  el.style.opacity = show ? '1' : '0';
+  el.style.pointerEvents = show ? 'auto' : 'none';
 }
 
-function hideLoadingOverlay() {
-  const el = document.getElementById('loadingOverlay');
-  if (el) {
-    el.classList.add('opacity-0', 'pointer-events-none');
-    el.classList.remove('opacity-100', 'pointer-events-auto');
-    el.setAttribute('aria-hidden', 'true');
-  }
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  const msgEl = document.getElementById('toastMsg');
+  if (!toast || !msgEl) return;
+  msgEl.textContent = msg;
+  toast.classList.remove('translate-y-20', 'opacity-0');
+  setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
 }
 
-const handleDownload = () => {
-  if (!currentImage) { showToast("Đang tải ảnh mẫu, vui lòng đợi..."); return; }
+/** Tạo canvas export từ blob gốc (createImageBitmap) để tránh canvas tainted → ảnh không bị đen */
+async function createExportImage() {
+  if (!imageBlob) throw new Error("Chưa có ảnh gốc");
+  const bitmap = await createImageBitmap(imageBlob);
   const guestName = guestNameInput.value.trim();
-  if (!guestName) { showToast("Vui lòng nhập tên khách mời"); return; }
-  if (isDownloading) return;
-  isDownloading = true;
-  setDownloadButtonsEnabled(false);
-  showLoadingOverlay();
-  draw();
   const scale = 2;
-  const exportCanvas = document.createElement('canvas');
-  exportCanvas.width = canvas.width * scale;
-  exportCanvas.height = canvas.height * scale;
-  const exportCtx = exportCanvas.getContext('2d');
-  exportCtx.imageSmoothingEnabled = true;
-  exportCtx.imageSmoothingQuality = 'high';
-  // Vẽ trực tiếp từ ảnh gốc + text (tránh canvas tainted trên Android)
-  exportCtx.drawImage(currentImage, 0, 0, exportCanvas.width, exportCanvas.height);
-  exportCtx.font = `${fontSize * scale}px ${fontSelect.value}`;
-  exportCtx.textAlign = "center";
-  exportCtx.textBaseline = "middle";
-  exportCtx.fillStyle = TEXT_COLOR;
-  exportCtx.fillText(guestName, (POS_X / 100) * exportCanvas.width, (POS_Y / 100) * exportCanvas.height);
+  const w = bitmap.width * scale;
+  const h = bitmap.height * scale;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx2 = c.getContext("2d");
+  ctx2.imageSmoothingEnabled = true;
+  ctx2.imageSmoothingQuality = "high";
+  ctx2.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close();
+  ctx2.font = `${fontSize * scale}px ${fontSelect.value}`;
+  ctx2.textAlign = "center";
+  ctx2.textBaseline = "middle";
+  ctx2.fillStyle = TEXT_COLOR;
+  ctx2.fillText(guestName, (POS_X / 100) * w, (POS_Y / 100) * h);
+  return c;
+}
 
-  const safeName = guestName.replace(/[^a-z0-9àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ\s]/gi, '_').trim() || "thiep_moi";
-  const fileName = `${safeName}.png`;
+function getSafeFileName(name) {
+  return (name || 'thiep_moi').replace(/[^a-zA-Z0-9àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ\s]/g, '_').trim() || 'thiep_moi';
+}
 
-  function onDownloadComplete(showSuccess = true, msg = "Tải thành công!") {
-    isDownloading = false;
-    setDownloadButtonsEnabled(true);
-    hideLoadingOverlay();
-    if (showSuccess) showToast(msg);
-  }
+function triggerDownload(dataUrl, fileName) {
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = fileName;
+  a.style.cssText = 'position:fixed;left:-9999px;';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
 
-  const isMobile = /iPad|iPhone|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-  exportCanvas.toBlob((blob) => {
-    if (!blob) {
-      onDownloadComplete();
-      showToast("Không thể tạo ảnh. Vui lòng thử lại.");
-      return;
-    }
-    const file = new File([blob], fileName, { type: "image/png" });
-
-    // iOS: Web Share API - bắt buộc, user chọn "Lưu ảnh" → lưu vào Photos
-    if (isIOS && navigator.share) {
-      let canShareFiles = false;
-      try {
-        canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
-      } catch (_) {}
-      if (canShareFiles) {
-        navigator.share({
-          files: [file],
-          title: "Thiệp cưới " + guestName,
-          text: "Thiệp mời đám cưới Huy & Hoa"
-        }).then(() => onDownloadComplete(true)).catch((err) => {
-          if (err.name === "AbortError") {
-            onDownloadComplete(false);
-          } else {
-            fallbackDownload(blob, fileName, onDownloadComplete, isMobile);
-          }
-        });
-        return;
-      }
-    }
-
-    // Android/Desktop: tải trực tiếp → lưu vào thư mục Tải xuống
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    const successMsg = isAndroid ? "Tải thành công! Xem trong thư mục Tải xuống." : "Tải thành công!";
-    fallbackDownload(blob, fileName, (ok) => onDownloadComplete(ok, successMsg), isMobile);
-  }, "image/png", 1);
-};
-
-function fallbackDownload(blobOrCanvas, fileName, onComplete, isMobile = false) {
-  if (blobOrCanvas instanceof HTMLCanvasElement) {
-    blobOrCanvas.toBlob((b) => b && fallbackDownload(b, fileName, onComplete, isMobile), "image/png", 1);
+async function handleDownload() {
+  if (!currentImage || !imageBlob) {
+    showToast("Đang tải ảnh mẫu, vui lòng đợi...");
     return;
   }
-  const blob = blobOrCanvas;
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.download = fileName;
-  link.href = url;
-  link.rel = "noopener noreferrer";
-  link.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;z-index:9999;";
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  if (isIOS) {
-    link.target = "_blank";
-    showToast("Mở ảnh trong tab mới. Chạm giữ ảnh → Lưu ảnh.");
+  const guestName = guestNameInput.value.trim();
+  if (!guestName) {
+    showToast("Vui lòng nhập tên khách mời");
+    return;
   }
-  document.body.appendChild(link);
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      link.click();
-      setTimeout(() => {
-        if (link.parentNode) document.body.removeChild(link);
-        try { URL.revokeObjectURL(url); } catch (_) {}
-      }, 15000);
-    });
-  });
-  onComplete(!isIOS);
+  if (isDownloading) return;
+
+  isDownloading = true;
+  setButtonsState(false);
+  showLoading(true);
+
+  const done = (success, msg) => {
+    isDownloading = false;
+    setButtonsState(true);
+    showLoading(false);
+    if (success && msg) showToast(msg);
+  };
+
+  let exportCanvas;
+  try {
+    exportCanvas = await createExportImage();
+  } catch (err) {
+    done(false);
+    showToast("Không thể tạo ảnh. Vui lòng thử lại.");
+    return;
+  }
+  const fileName = getSafeFileName(guestName) + ".png";
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  exportCanvas.toBlob(
+    (blob) => {
+      if (!blob) {
+        const dataUrl = exportCanvas.toDataURL('image/png');
+        if (dataUrl && dataUrl.length > 100) {
+          triggerDownload(dataUrl, fileName);
+          done(true, "Tải thành công!");
+        } else {
+          done(false);
+          showToast("Không thể tạo ảnh. Vui lòng thử lại.");
+        }
+        return;
+      }
+
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      if (isIOS && navigator.share && navigator.canShare?.({ files: [file] })) {
+        navigator
+          .share({ files: [file], title: 'Thiệp cưới ' + guestName })
+          .then(() => done(true, "Tải thành công!"))
+          .catch((err) => {
+            if (err.name === 'AbortError') {
+              done(false);
+            } else {
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = fileName;
+              a.target = '_blank';
+              a.style.cssText = 'position:fixed;left:-9999px;';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              setTimeout(() => URL.revokeObjectURL(url), 10000);
+              done(true, "Mở ảnh trong tab mới. Chạm giữ ảnh → Lưu ảnh.");
+            }
+          });
+        return;
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.style.cssText = 'position:fixed;left:-9999px;';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      const msg = /Android/i.test(navigator.userAgent) ? "Tải thành công! Xem trong thư mục Tải xuống." : "Tải thành công!";
+      done(true, msg);
+    },
+    'image/png',
+    1
+  );
 }
 
-document.addEventListener("click", (e) => {
-  const target = e.target.closest("#downloadBtn, #downloadBtnMobileBtn");
-  if (target && !target.disabled) {
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('#downloadBtn, #downloadBtnMobileBtn');
+  if (t && !t.disabled) {
     e.preventDefault();
     handleDownload();
   }
 });
 
-function showToast(msg) {
-  const toast = document.getElementById('toast');
-  if (!toast) return;
-  document.getElementById('toastMsg').innerText = msg;
-  toast.classList.remove('translate-y-20', 'opacity-0');
-  setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
-}
-
-// Nút Tải app (PWA)
 let deferredPrompt;
 const installBtn = document.getElementById('installBtn');
 const installBtnWrap = document.getElementById('installBtnWrap');
@@ -224,14 +248,10 @@ if (installBtn && installBtnWrap) {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      installBtnWrap.classList.add('hidden');
-      showToast('Đã thêm app vào màn hình!');
-    }
+    if (outcome === 'accepted') showToast('Đã thêm app vào màn hình!');
     deferredPrompt = null;
   });
-  // Ẩn nút nếu đã cài (chạy ở chế độ standalone)
-  if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+  if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
     installBtnWrap.classList.add('hidden');
   }
 }

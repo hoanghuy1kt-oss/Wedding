@@ -187,48 +187,6 @@ async function handleDownload() {
       const file = new File([blob], fileName, { type: 'image/png' });
       const isAndroid = /Android/i.test(navigator.userAgent);
 
-      // Android: copy ảnh vào clipboard → user dán vào WhatsApp/Zalo để gửi
-      if (isAndroid && navigator.clipboard?.write) {
-        navigator.clipboard
-          .write([new ClipboardItem({ 'image/png': blob })])
-          .then(() => done(true, "Đã copy thiệp! Mở WhatsApp/Zalo → dán để gửi cho khách."))
-          .catch(() => {
-            // Fallback: Web Share
-            if (navigator.share && navigator.canShare?.({ files: [file] })) {
-              navigator.share({ files: [file], title: 'Thiệp cưới ' + guestName })
-                .then(() => done(true, "Đã chia sẻ!"))
-                .catch((e) => {
-                  if (e.name !== 'AbortError') {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = fileName;
-                    a.target = '_blank';
-                    a.style.cssText = 'position:fixed;left:-9999px;';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(() => URL.revokeObjectURL(url), 10000);
-                    done(true, "Mở ảnh trong tab mới. Chạm giữ ảnh → Lưu ảnh.");
-                  } else done(false);
-                });
-            } else {
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = fileName;
-              a.target = '_blank';
-              a.style.cssText = 'position:fixed;left:-9999px;';
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              setTimeout(() => URL.revokeObjectURL(url), 10000);
-              done(true, "Mở ảnh trong tab mới. Chạm giữ ảnh → Lưu ảnh.");
-            }
-          });
-        return;
-      }
-
       // iOS: Web Share
       if (isIOS && navigator.share && navigator.canShare?.({ files: [file] })) {
         navigator
@@ -253,7 +211,7 @@ async function handleDownload() {
         return;
       }
 
-      // Desktop: tải về
+      // Android & Desktop: tải về → lưu vào Ảnh/Tải xuống
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -263,7 +221,8 @@ async function handleDownload() {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 10000);
-      done(true, "Tải thành công!");
+      const msg = isAndroid ? "Đã lưu thiệp! Xem trong Ảnh hoặc thư mục Tải xuống." : "Tải thành công!";
+      done(true, msg);
     },
     'image/png',
     1

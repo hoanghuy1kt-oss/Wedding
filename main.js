@@ -14,7 +14,8 @@ canvas.width = 800;
 canvas.height = 600;
 
 function loadDefaultImage() {
-  fetch(DEFAULT_IMAGE_PATH)
+  const path = DEFAULT_IMAGE_PATH.includes(" ") ? encodeURI(DEFAULT_IMAGE_PATH) : DEFAULT_IMAGE_PATH;
+  fetch(path)
     .then((res) => {
       if (!res.ok) throw new Error("Network error");
       return res.blob();
@@ -97,22 +98,43 @@ function showToast(msg) {
   setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
 }
 
-/** Tạo canvas export từ blob gốc (createImageBitmap) để tránh canvas tainted → ảnh không bị đen */
+/** Tạo canvas export – dùng createImageBitmap (fallback: currentImage) để tránh canvas tainted */
 async function createExportImage() {
-  if (!imageBlob) throw new Error("Chưa có ảnh gốc");
-  const bitmap = await createImageBitmap(imageBlob);
   const guestName = guestNameInput.value.trim();
   const scale = 2;
-  const w = bitmap.width * scale;
-  const h = bitmap.height * scale;
+  let srcW, srcH;
+  let bitmap = null;
+
+  if (typeof createImageBitmap === "function" && imageBlob) {
+    try {
+      bitmap = await createImageBitmap(imageBlob);
+      srcW = bitmap.width;
+      srcH = bitmap.height;
+    } catch (_) {
+      bitmap = null;
+    }
+  }
+
+  if (!bitmap) {
+    if (!currentImage) throw new Error("Chưa có ảnh gốc");
+    srcW = currentImage.width;
+    srcH = currentImage.height;
+  }
+
+  const w = srcW * scale;
+  const h = srcH * scale;
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
   const ctx2 = c.getContext("2d");
   ctx2.imageSmoothingEnabled = true;
   ctx2.imageSmoothingQuality = "high";
-  ctx2.drawImage(bitmap, 0, 0, w, h);
-  bitmap.close();
+  if (bitmap) {
+    ctx2.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+  } else {
+    ctx2.drawImage(currentImage, 0, 0, w, h);
+  }
   ctx2.font = `${fontSize * scale}px ${fontSelect.value}`;
   ctx2.textAlign = "center";
   ctx2.textBaseline = "middle";
@@ -136,7 +158,7 @@ function triggerDownload(dataUrl, fileName) {
 }
 
 async function handleDownload() {
-  if (!currentImage || !imageBlob) {
+  if (!currentImage) {
     showToast("Đang tải ảnh mẫu, vui lòng đợi...");
     return;
   }
@@ -163,7 +185,7 @@ async function handleDownload() {
     exportCanvas = await createExportImage();
   } catch (err) {
     done(false);
-    showToast("Không thể tạo ảnh. Vui lòng thử lại.");
+    showToast("Không thể tạo ảnh. Vui lòng tải lại trang và thử lại.");
     return;
   }
   const fileName = getSafeFileName(guestName) + ".png";
@@ -187,8 +209,9 @@ async function handleDownload() {
       const file = new File([blob], fileName, { type: 'image/png' });
       const isAndroid = /Android/i.test(navigator.userAgent);
 
-      // Android & iOS: Web Share – có ảnh thật, lưu/gửi qua bảng chia sẻ
-      if ((isIOS || isAndroid) && navigator.share && navigator.canShare?.({ files: [file] })) {
+      // Android & iOS: Web Share – có ảnh thật. Chọn "Lưu ảnh" / "Add to Photos" để lưu vào Thư viện Ảnh
+      // iOS: luôn thử share (canShare có thể trả false sai trên một số phiên bản)
+      if ((isIOS || isAndroid) && navigator.share) {
         navigator
           .share({ files: [file], title: 'Thiệp cưới ' + guestName })
           .then(() => {
@@ -218,17 +241,24 @@ async function handleDownload() {
         return;
       }
 
-      // Desktop: tải về
+      // Desktop: tải về. iOS/Android fallthrough: mở ảnh trong tab mới để lưu
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = fileName;
+      if (isIOS || isAndroid) {
+        a.target = '_blank';
+        done(true, isIOS
+          ? "Ảnh đã mở. Chạm giữ ảnh → chọn 'Lưu ảnh' để lưu vào Thư viện Ảnh."
+          : "Ảnh đã mở. Chạm giữ ảnh → Lưu ảnh.");
+      } else {
+        done(true, "Tải thành công!");
+      }
       a.style.cssText = 'position:fixed;left:-9999px;';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 10000);
-      done(true, "Tải thành công!");
     },
     'image/png',
     1

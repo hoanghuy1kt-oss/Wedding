@@ -112,14 +112,15 @@ const handleDownload = () => {
   const safeName = guestName.replace(/[^a-z0-9àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ\s]/gi, '_').trim() || "thiep_moi";
   const fileName = `${safeName}.png`;
 
-  function onDownloadComplete() {
+  function onDownloadComplete(showSuccess = true) {
     isDownloading = false;
     setDownloadButtonsEnabled(true);
     hideLoadingOverlay();
-    showToast("Tải thành công!");
+    if (showSuccess) showToast("Tải thành công!");
   }
 
   const isMobile = /iPad|iPhone|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
   exportCanvas.toBlob((blob) => {
     if (!blob) {
@@ -129,8 +130,8 @@ const handleDownload = () => {
     }
     const file = new File([blob], fileName, { type: "image/png" });
 
-    // iOS/Android: Web Share API - cách tin cậy nhất trên mobile
-    if (isMobile && navigator.share) {
+    // iOS: Web Share API - bắt buộc, user chọn "Lưu ảnh" → lưu vào Photos
+    if (isIOS && navigator.share) {
       let canShareFiles = false;
       try {
         canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
@@ -140,17 +141,19 @@ const handleDownload = () => {
           files: [file],
           title: "Thiệp cưới " + guestName,
           text: "Thiệp mời đám cưới Huy & Hoa"
-        }).then(() => onDownloadComplete()).catch((err) => {
-          if (err.name !== "AbortError") {
-            fallbackDownload(blob, fileName, onDownloadComplete, isMobile);
+        }).then(() => onDownloadComplete(true)).catch((err) => {
+          if (err.name === "AbortError") {
+            onDownloadComplete(false);
           } else {
-            onDownloadComplete();
+            fallbackDownload(blob, fileName, onDownloadComplete, isMobile);
           }
         });
         return;
       }
     }
 
+    // Android: thử tải trực tiếp (download attribute) → lưu vào thư mục Tải xuống
+    // Desktop: tải trực tiếp
     fallbackDownload(blob, fileName, onDownloadComplete, isMobile);
   }, "image/png", 1);
 };
@@ -167,7 +170,11 @@ function fallbackDownload(blobOrCanvas, fileName, onComplete, isMobile = false) 
   link.href = url;
   link.rel = "noopener noreferrer";
   link.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;z-index:9999;";
-  if (isMobile) link.target = "_blank";
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (isIOS) {
+    link.target = "_blank";
+    showToast("Mở ảnh trong tab mới. Chạm giữ ảnh → Lưu ảnh.");
+  }
   document.body.appendChild(link);
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -178,10 +185,7 @@ function fallbackDownload(blobOrCanvas, fileName, onComplete, isMobile = false) 
       }, 15000);
     });
   });
-  if (isMobile) {
-    showToast("Mở ảnh trong tab mới. Chạm giữ ảnh để lưu.");
-  }
-  onComplete();
+  onComplete(!isIOS);
 }
 
 document.addEventListener("click", (e) => {

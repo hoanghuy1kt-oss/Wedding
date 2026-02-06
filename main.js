@@ -17,6 +17,7 @@ canvas.height = 600;
 
 function loadDefaultImage() {
   const img = new Image();
+  img.crossOrigin = "anonymous";
   img.onload = () => {
     canvas.width = img.width;
     canvas.height = img.height;
@@ -97,7 +98,6 @@ const handleDownload = () => {
   isDownloading = true;
   setDownloadButtonsEnabled(false);
   showLoadingOverlay();
-  // Vẽ lại canvas chính để đảm bảo có nội dung mới nhất
   draw();
   const scale = 2;
   const exportCanvas = document.createElement('canvas');
@@ -106,17 +106,22 @@ const handleDownload = () => {
   const exportCtx = exportCanvas.getContext('2d');
   exportCtx.imageSmoothingEnabled = true;
   exportCtx.imageSmoothingQuality = 'high';
-  // Sao chép từ canvas chính (đã hiển thị đúng) để tránh lỗi CORS/tainted canvas
-  exportCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, exportCanvas.width, exportCanvas.height);
+  // Vẽ trực tiếp từ ảnh gốc + text (tránh canvas tainted trên Android)
+  exportCtx.drawImage(currentImage, 0, 0, exportCanvas.width, exportCanvas.height);
+  exportCtx.font = `${fontSize * scale}px ${fontSelect.value}`;
+  exportCtx.textAlign = "center";
+  exportCtx.textBaseline = "middle";
+  exportCtx.fillStyle = TEXT_COLOR;
+  exportCtx.fillText(guestName, (POS_X / 100) * exportCanvas.width, (POS_Y / 100) * exportCanvas.height);
 
   const safeName = guestName.replace(/[^a-z0-9àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ\s]/gi, '_').trim() || "thiep_moi";
   const fileName = `${safeName}.png`;
 
-  function onDownloadComplete(showSuccess = true) {
+  function onDownloadComplete(showSuccess = true, msg = "Tải thành công!") {
     isDownloading = false;
     setDownloadButtonsEnabled(true);
     hideLoadingOverlay();
-    if (showSuccess) showToast("Tải thành công!");
+    if (showSuccess) showToast(msg);
   }
 
   const isMobile = /iPad|iPhone|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -152,9 +157,10 @@ const handleDownload = () => {
       }
     }
 
-    // Android: thử tải trực tiếp (download attribute) → lưu vào thư mục Tải xuống
-    // Desktop: tải trực tiếp
-    fallbackDownload(blob, fileName, onDownloadComplete, isMobile);
+    // Android/Desktop: tải trực tiếp → lưu vào thư mục Tải xuống
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const successMsg = isAndroid ? "Tải thành công! Xem trong thư mục Tải xuống." : "Tải thành công!";
+    fallbackDownload(blob, fileName, (ok) => onDownloadComplete(ok, successMsg), isMobile);
   }, "image/png", 1);
 };
 

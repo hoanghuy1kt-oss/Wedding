@@ -17,7 +17,6 @@ canvas.height = 600;
 
 function loadDefaultImage() {
   const img = new Image();
-  img.crossOrigin = "anonymous";
   img.onload = () => {
     canvas.width = img.width;
     canvas.height = img.height;
@@ -101,43 +100,65 @@ const handleDownload = () => {
     showToast("Tải thành công!");
   }
 
-  // iOS/Android: dùng Web Share API để lưu ảnh đúng định dạng
   const isMobile = /iPad|iPhone|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  if (isMobile && navigator.canShare) {
-    exportCanvas.toBlob((blob) => {
-      if (blob && navigator.canShare({ files: [new File([blob], fileName, { type: "image/png" })] })) {
+
+  exportCanvas.toBlob((blob) => {
+    if (!blob) {
+      onDownloadComplete();
+      showToast("Không thể tạo ảnh. Vui lòng thử lại.");
+      return;
+    }
+    const file = new File([blob], fileName, { type: "image/png" });
+
+    // iOS/Android: Web Share API - cách tin cậy nhất trên mobile
+    if (isMobile && navigator.share) {
+      let canShareFiles = false;
+      try {
+        canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
+      } catch (_) {}
+      if (canShareFiles) {
         navigator.share({
-          files: [new File([blob], fileName, { type: "image/png" })],
+          files: [file],
           title: "Thiệp cưới " + guestName,
           text: "Thiệp mời đám cưới Huy & Hoa"
-        }).then(() => onDownloadComplete()).catch(() => fallbackDownload(exportCanvas, fileName, onDownloadComplete));
-      } else {
-        fallbackDownload(exportCanvas, fileName, onDownloadComplete);
+        }).then(() => onDownloadComplete()).catch((err) => {
+          if (err.name !== "AbortError") {
+            fallbackDownload(blob, fileName, onDownloadComplete, isMobile);
+          } else {
+            onDownloadComplete();
+          }
+        });
+        return;
       }
-    }, "image/png", 1);
-    return;
-  }
+    }
 
-  fallbackDownload(exportCanvas, fileName, onDownloadComplete);
+    fallbackDownload(blob, fileName, onDownloadComplete, isMobile);
+  }, "image/png", 1);
 };
 
-function fallbackDownload(canvasEl, fileName, onComplete) {
-  canvasEl.toBlob((blob) => {
-    if (!blob) {
-      const link = document.createElement("a");
-      link.download = fileName;
-      link.href = canvasEl.toDataURL("image/png");
-      link.click();
-    } else {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.download = fileName;
-      link.href = url;
-      link.click();
-      URL.revokeObjectURL(url);
-    }
-    if (onComplete) onComplete();
-  }, "image/png", 1);
+function fallbackDownload(blobOrCanvas, fileName, onComplete, isMobile = false) {
+  if (blobOrCanvas instanceof HTMLCanvasElement) {
+    blobOrCanvas.toBlob((b) => b && fallbackDownload(b, fileName, onComplete, isMobile), "image/png", 1);
+    return;
+  }
+  const blob = blobOrCanvas;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.download = fileName;
+  link.href = url;
+  link.rel = "noopener";
+  if (isMobile) {
+    link.target = "_blank";
+    link.style.display = "none";
+  }
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  if (isMobile) {
+    showToast("Mở ảnh trong tab mới. Chạm giữ ảnh để lưu.");
+  }
+  onComplete();
 }
 if (downloadBtn) downloadBtn.addEventListener('click', handleDownload);
 const mobileDownloadBtn = downloadBtnMobile?.querySelector('button');
